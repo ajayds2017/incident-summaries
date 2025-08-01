@@ -1,35 +1,26 @@
-name: Generate Incident Summary PDF
+name: Generate Summary
 
 on:
   push:
     paths:
-      - incidents.json
+      - "incidents.json"
 
 jobs:
   generate-summary:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: "18"
 
       - name: Install dependencies
-        run: npm install
+        run: npm install openai pdf-lib
 
       - name: Generate summary from incidents.json
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node generatePdf.js
-
-      - name: Commit generated PDF
-        run: |
-          git config --global user.name 'ajayds2017'
-          git config --global user.email 'contact.ajayds@gmail.com'
-          git add incident_summary.pdf
-          git commit -m "Add generated incident summary PDF"
-          git push
