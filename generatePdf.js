@@ -1,46 +1,32 @@
 const fs = require('fs');
-const path = require('path');
-const { OpenAI } = require('openai');
-const { PDFDocument, rgb } = require('pdf-lib');
+const { jsPDF } = require('jspdf');
+const { default: fetch } = require('node-fetch'); // needed for newer node versions
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY // Set this in GitHub Secrets
-});
+(async () => {
+  try {
+    const rawData = fs.readFileSync('incidents.json');
+    const parsed = JSON.parse(rawData);
+    const incidents = Array.isArray(parsed) ? parsed : parsed.incidents;
 
-async function generateSummaryPDF() {
-  const incidentsPath = path.join(__dirname, 'incidents.json');
-  const incidentsData = fs.readFileSync(incidentsPath, 'utf-8');
-  const incidents = JSON.parse(incidentsData);
+    if (!Array.isArray(incidents)) {
+      throw new Error("Incidents data is not an array.");
+    }
 
-  let allSummaries = '';
+    const doc = new jsPDF();
 
-  for (const incident of incidents) {
-    const prompt = `Summarize the following ServiceNow incident:\n\n${JSON.stringify(incident, null, 2)}`;
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [{ role: 'user', content: prompt }],
+    incidents.forEach((incident, index) => {
+      const y = 10 + index * 60;
+      doc.text(`Incident #${index + 1}`, 10, y);
+      doc.text(`ID: ${incident.id}`, 10, y + 10);
+      doc.text(`Title: ${incident.title}`, 10, y + 20);
+      doc.text(`Description: ${incident.description}`, 10, y + 30);
+      doc.text(`Severity: ${incident.severity}`, 10, y + 40);
     });
 
-    const summary = response.choices[0].message.content;
-    allSummaries += `Incident ID: ${incident.id}\nSummary: ${summary}\n\n`;
+    doc.save('incident_summary.pdf');
+    console.log('PDF generated');
+  } catch (err) {
+    console.error('Failed to generate PDF:', err);
+    process.exit(1);
   }
-
-  // Create a PDF
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage();
-  const fontSize = 12;
-  const { width, height } = page.getSize();
-  page.drawText(allSummaries.slice(0, 4000), {
-    x: 50,
-    y: height - 50,
-    size: fontSize,
-    color: rgb(0, 0, 0),
-    lineHeight: 16
-  });
-
-  const pdfBytes = await pdfDoc.save();
-  fs.writeFileSync(path.join(__dirname, 'incident_summaries.pdf'), pdfBytes);
-  console.log('✅ PDF Generated: incident_summaries.pdf');
-}
-
-generateSummaryPDF().catch(console.error);
+})();
