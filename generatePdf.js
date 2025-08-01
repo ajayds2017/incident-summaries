@@ -41,4 +41,15 @@ async function generatePDF() {
       doc.text(`ID: ${incident.id}`, 10, y + 10);
       doc.text(`Title: ${incident.title}`, 10, y + 20);
       doc.text(`Severity: ${incident.severity}`, 10, y + 30);
-      doc.text(`Summary: ${summary}`,
+      doc.text(`Summary: ${summary}`, 10, y + 40);
+    }
+
+    doc.save('incident_summary.pdf');
+    console.log("PDF generated.");
+  } catch (err) {
+    console.error("PDF generation failed:", err.message);
+    process.exit(1);
+  }
+}
+
+generatePDF(); // ← Don't forget to actually run the function
