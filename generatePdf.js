@@ -1,56 +1,46 @@
-// generatePdf.js
-
 const fs = require('fs');
-const PDFDocument = require('pdfkit');
-const { Configuration, OpenAIApi } = require('openai');
+const path = require('path');
+const { OpenAI } = require('openai');
+const { PDFDocument, rgb } = require('pdf-lib');
 
-// 1. Read incidents.json
-const incidentsData = JSON.parse(fs.readFileSync('incidents.json', 'utf8'));
-
-// 2. Initialize OpenAI
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY // Set this in GitHub Secrets
 });
-const openai = new OpenAIApi(configuration);
 
-// 3. Create PDF Document
-const doc = new PDFDocument();
-doc.pipe(fs.createWriteStream('incident_summary.pdf'));
+async function generateSummaryPDF() {
+  const incidentsPath = path.join(__dirname, 'incidents.json');
+  const incidentsData = fs.readFileSync(incidentsPath, 'utf-8');
+  const incidents = JSON.parse(incidentsData);
 
-(async () => {
-  doc.fontSize(20).text('Incident Summary Report', { align: 'center' }).moveDown();
+  let allSummaries = '';
 
-  for (const [index, incident] of incidentsData.entries()) {
-    const incidentPrompt = `
-You are an ITSM assistant. Summarize this ServiceNow incident in a formal, clear way:
-Incident Data:
-${JSON.stringify(incident, null, 2)}
-`;
+  for (const incident of incidents) {
+    const prompt = `Summarize the following ServiceNow incident:\n\n${JSON.stringify(incident, null, 2)}`;
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+    });
 
-    // 4. Call OpenAI API
-    let summary = 'Summary not generated.';
-    try {
-      const response = await openai.createChatCompletion({
-        model: 'gpt-4',
-        messages: [
-          { role: 'system', content: 'You summarize incident data for IT support teams.' },
-          { role: 'user', content: incidentPrompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 300,
-      });
-
-      summary = response.data.choices[0].message.content.trim();
-    } catch (err) {
-      console.error('OpenAI Error:', err.message);
-    }
-
-    // 5. Add to PDF
-    doc.addPage();
-    doc.fontSize(16).text(`Incident ${index + 1}`, { underline: true }).moveDown();
-    doc.fontSize(12).text(summary);
+    const summary = response.choices[0].message.content;
+    allSummaries += `Incident ID: ${incident.id}\nSummary: ${summary}\n\n`;
   }
 
-  // 6. Finalize PDF
-  doc.end();
-})();
+  // Create a PDF
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage();
+  const fontSize = 12;
+  const { width, height } = page.getSize();
+  page.drawText(allSummaries.slice(0, 4000), {
+    x: 50,
+    y: height - 50,
+    size: fontSize,
+    color: rgb(0, 0, 0),
+    lineHeight: 16
+  });
+
+  const pdfBytes = await pdfDoc.save();
+  fs.writeFileSync(path.join(__dirname, 'incident_summaries.pdf'), pdfBytes);
+  console.log('✅ PDF Generated: incident_summaries.pdf');
+}
+
+generateSummaryPDF().catch(console.error);
