@@ -1,0 +1,36 @@
+name: Incident Summary Generator
+
+on:
+  push:
+    paths:
+      - "incident.json" # trigger only when this file changes
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install openai pdfkit
+
+      - name: Run summary script
+        run: node scripts/summarize.js
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and push PDF
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add incident_summary.pdf
+          git commit -m "Add summary PDF"
+          git push
